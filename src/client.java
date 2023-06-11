@@ -10,8 +10,12 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import org.xml.sax.SAXException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class client {
+    private static Map<String, String> DialogNames = new HashMap<>();
+    private static Map<String, List<Message>> Messages = new HashMap<>();
     public static String buildMessage(String senderID, String receiverID, String cont, String name){
         LocalDateTime currentTime = LocalDateTime.now();
         String formattedTime = currentTime.format(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"));
@@ -42,7 +46,7 @@ public class client {
         System.out.println(result);
         return result;
     }
-    public static void handleMessage(String receivedMessage, MutableString uniqueIdString, PrintWriter out){
+    public static void handleMessage(String receivedMessage, MutableString uniqueIdString,MutableString CliName, PrintWriter out){
         try {
                 SAXParserFactory factory = SAXParserFactory.newInstance();
                 SAXParser parser = factory.newSAXParser();
@@ -55,6 +59,27 @@ public class client {
                             break;
                         case "send_message":
                             System.out.println("Send message");
+                            break;
+                        case "dialog_accept":
+                            if (!map.containsKey(map.get("sender"))){
+                                DialogNames.put(map.get("sender"),map.get("sender_name"));
+                                Messages.put(map.get("sender"),new ArrayList<>());
+                            }
+                            System.out.println(DialogNames.keySet());
+                            System.out.println(DialogNames.values());
+                            break;
+                        case "dialog_request":
+                            String name = map.get("sender_name");
+                            String senderID = map.get("sender");
+                            if (!map.containsKey(senderID)){
+                                DialogNames.put(senderID,name);
+                                Messages.put(senderID,new ArrayList<>());
+                            }
+                            String accept = buildAddDialog(uniqueIdString.getValue(), senderID,CliName.toString() , "dialog_accept");
+                            if (!accept.equals("")) out.println(accept);
+                            System.out.println(DialogNames.keySet());
+                            System.out.println(DialogNames.values());
+                            break;
                         default:
                             System.out.println("Unrecognized message");
                     }
@@ -98,7 +123,7 @@ public class client {
                     while ((receivedMessage = in.readLine()) != null) {
                         if (receivedMessage.equals("END"))
                             break;
-                        handleMessage(receivedMessage,uniqueIdString,out);
+                        handleMessage(receivedMessage,uniqueIdString, ClientName, out);
                     }
                 }
                 catch (IOException e) {
@@ -115,32 +140,19 @@ public class client {
                 input_text = scanner.nextLine();
                 if (input_text.equalsIgnoreCase("END"))
                     break;
-
                 String sanitizedInput = input_text.replace("\"", "&quot;");
-                String message = buildMessage(uniqueIdString.getValue(), input_ID, sanitizedInput, ClientName.getValue());
+                String message = "";
+                if (input_text.equals("add"))
+                    message = buildAddDialog(uniqueIdString.getValue(), input_ID, ClientName.toString() , "dialog_request");
+                else message = buildMessage(uniqueIdString.getValue(), input_ID, sanitizedInput, ClientName.getValue());
+
                 if (!message.equals("")) out.println(message);
             }
         }
-//        try {
-//            System.out.println("socket = " + socket);
-//            //BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-//            String buf = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?> <message type=\"send_message\" sender=\"00\" receiver=\"01\" content=\"Test\"></message>";
-//            out.println(buf);
-//            System.out.println(buf);
-//            Scanner scanner = new Scanner(System.in);
-//            String input = scanner.nextLine();
-//            String sanitizedInput = input.replace("\"", "&quot;");
-//            String message = build_message(uniqueIdString,"01",sanitizedInput);
-//            out.println(message);
-//            out.println("END");
-//        }
-//
         finally {
             System.out.println("closing...");
             socket.close();
         }
-
-
 
     }
 }
@@ -150,4 +162,22 @@ class MutableString {
     public String getValue() { return value; }
     public void setValue(String value) { this.value = value; }
 
+    @Override
+    public String toString() {
+        return this.value;
+    }
+}
+class Message{
+    public String text;
+    public LocalDateTime timestamp;
+    public String source;
+    public Message(String text,String source,String time){
+        this.text = text;
+        this.source = source; //sender | receiver
+        this.setTime(time);
+    }
+    public void setTime(String time){
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss");
+        this.timestamp = LocalDateTime.parse(time, formatter);
+    }
 }
